@@ -7,7 +7,7 @@ Ref         TR4      x       y
 0 1000      1000    800     800
 1000 2000   1000    800     1000
 
-# scripts:
+# scripts
 
 Scripts for downstream analysis
 
