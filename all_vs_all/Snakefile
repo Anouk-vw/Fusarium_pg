@@ -1,0 +1,125 @@
+"""
+Snakefile runs all-vs-all nucmer alignment
+"""
+
+import scripts.nucmerDF as nucdf
+
+ruleorder: nucmer > filter_nuc > coords > create_bed1 > windows_1
+
+#example command to create genome_names:\
+#for f in $(ls "fastadir/" | cut -d'.' -f 1); do echo $f "fastadir/$f" >> genome_names.txt ; done
+
+#Create .fai for each fasta
+#for f in $(ls "fastadir/"); do samtools faidx $f ; done 
+
+#specify file with genome names and directory to write to (will include nuc_synt and nucmers in dir)
+infile = 'vanDam_nucmers/genome_names.txt'
+outDir = '/home/anouk/anouk2/pangenome/nucmer/vanDam_nucmers'#'/home/anouk/anouk2/pangenome/nucmer/vanDam_nucmers'
+
+def collect_genomes(genome_names):
+	genomes_dict = {}
+	with open(genome_names) as gfile:
+		for line in gfile:
+			g_name, g_path = line.split('\t')
+			genomes_dict[g_name] = g_path.strip()
+	return genomes_dict
+
+def compare(genome_list):
+	comp_all = []
+	for i,g in enumerate(genome_list):
+		comp = [(genome_list[i], x) for x in genome_list if x != genome_list[i]]
+		if len(comp) > 0:
+			comp_all.extend(comp)
+	return comp_all
+genome_d = collect_genomes(infile)
+pairs = compare([x for x in genome_d.keys()])
+
+p = ['windows'.join(p) for p in pairs]
+#only TR4:
+#p = ['TR4_II5windows{}'.format(x) for x in genome_d.keys() if x != 'TR4_II5']
+deltas = ['_d_'.join(p) for p in pairs]
+comparisons = [y for y in genome_d.keys() if [x[0] for x in pairs].count(y) > 1] #list(set([x[0] for x in pairs]))
+print(comparisons)
+
+rule all:
+	input:
+		expand('{out}/nucmers/{gd}.delta', out = outDir, gd = deltas),
+		#expand('{out}/nuc_synt/TR4_II5_f_C058.filter_synt', out = outDir),
+		expand('{out}/nuc_synt/{g}_synt_5000.bed', out = outDir, g = p),
+		#expand('{out}/nuc_synt/{g}_synt_5000.bed', out = outDir, g = p),
+		expand('{out}/nuc_synt/sliding_windows/{g}_synt_sliding.bed', out = outDir, g = p), #,  g1 = genome_list, g2 = genome_list),
+		#expand('TR4_II5windows{g}_synt.bed', g = genome_list)
+		expand('{out}/cov_df/{ref_g}_covdf.csv', out = outDir, ref_g = genome_d.keys()),
+		expand('{out}/cov_df_sliding/{ref_g}_covdf.csv', out = outDir, ref_g = genome_d.keys())
+
+rule nucmer:
+	input: 
+		g1 = lambda wildcards: genome_d[wildcards.genome1],
+		g2 = lambda wildcards: genome_d[wildcards.genome2]
+	output: '{out}/nucmers/{genome1}_d_{genome2}.delta'
+	params: '{out}/nucmers/{genome1}_d_{genome2}'
+	shell:
+		'nucmer --maxgap=500 --mincluster=100 --maxmatch --prefix={params} {input.g1} {input.g2}'
+
+rule filter_nuc:
+	## 22-11 replace 'delta-filter -i 90 -l 5000 -1 -q -r {input} > {output}' 
+	##with 'delta-filter {input} > {output}'. to try
+	input:
+		'{out}/nucmers/{genome1}_d_{genome2}.delta'
+	output:
+		'{out}/nuc_synt/{genome1}_f_{genome2}.filter_synt'
+	shell:
+		'delta-filter -1 -l 5000 {input} > {output}'
+
+rule coords:
+	input:
+		'{out}/nuc_synt/{genome1}_f_{genome2}.filter_synt'
+	output:
+		'{out}/nuc_synt/{genome1}_f_{genome2}.filter_synt.coords'
+	shell:
+		'show-coords -r -B {input} > {output}'
+
+rule create_bed1:
+	input:
+		'{out}/nuc_synt/{genome1}_f_{genome2}.filter_synt.coords'
+	output:
+		p1 = '{out}/nuc_synt/{genome1}vs{genome2}_synt.bed'
+	params:
+		p2 = '{out}/nuc_synt/{genome2}vs{genome1}_synt.bed'
+	run:
+		shell('''awk '{{print $8 "\\t" $11 "\\t" $12 "\\t" $13}}' {input} > {output.p1}''')
+		#shell('''awk '{{if ($9 < $10) print $1 "\\t" $9 "\\t" $10 "\\t" $13; else print $1 "\\t" $10 "\\t" $9 "\\t" $13}}' {input} > {params.p2}''')
+
+rule windows_1:
+	input:
+		genome = lambda wildcards: ['{}.fai'.format(x) for x in [genome_d[wildcards.genome1]]],
+		bed = '{out}/nuc_synt/{genome1}vs{genome2}_synt.bed'
+	output:
+		'{out}/nuc_synt/{genome1}windows{genome2}_synt_5000.bed'
+	shell:
+		'bedtools makewindows -g {input.genome} -w 5000 | bedtools coverage -a - -b {input.bed} > {output}'
+
+rule windows_sliding:
+	input:
+		genome = lambda wildcards: ['{}.fai'.format(x) for x in [genome_d[wildcards.genome1]]],
+		bed = '{out}/nuc_synt/{genome1}vs{genome2}_synt.bed'
+	output:
+		'{out}/nuc_synt/sliding_windows/{genome1}windows{genome2}_synt_sliding.bed'
+	shell:
+		'bedtools makewindows -g {input.genome} -w 5000 -s 1000| bedtools coverage -a - -b {input.bed} > {output}'
+
+rule create_covdf:
+    input:
+        '{out}/nuc_synt/'
+    output:
+        '{out}/cov_df/{ref_g}_covdf.csv'
+    run:
+        nucdf.save_df(f'{outDir}/nuc_synt/', wildcards.ref_g, 'synt_5000.bed', 'windows', 0.8, output[0])
+
+rule create_covdf_sliding:
+    input:
+        '{out}/nuc_synt/'
+    output:
+        '{out}/cov_df_sliding/{ref_g}_covdf.csv'
+    run:
+        nucdf.save_df(f'{outDir}/nuc_synt/sliding_windows/', wildcards.ref_g, 'synt_sliding.bed', 'windows', 0.8, output[0])

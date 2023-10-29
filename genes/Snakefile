@@ -1,0 +1,112 @@
+#!python3
+"""
+Create graph in cactus HAL format
+As described https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md
+Hickey, G., Monlong, J., Ebler, J. et al. Pangenome graph construction from genome alignments with Minigraph-Cactus. Nat Biotechnol (2023). 
+"""
+out_dir = 'cactus_complete'
+
+def rewrite_ids_nogz(fasta_in, out_fasta):
+    with open(fasta_in, 'rt') as fasta, open(out_fasta, 'w') as corrected:
+        for record in SeqIO.parse(fasta, "fasta"):          
+            record.description = record.id
+            record.id = record.id
+            SeqIO.write(record, corrected, "fasta")
+    return
+
+def minigraph_input(wildcards):
+	in_paths = []
+	with open('{}/seqfile.txt'.format(out_dir)) as ref:
+		for line in ref:
+			if len(line.split('\t')) > 1:
+				name, path = line.split('\t')
+				in_paths.append(path.strip())
+	return in_paths
+	
+def seqfile_masked():
+	names = []
+	masked_path = []
+	partial = []
+	with open('{}/seqfile.txt'.format(out_dir)) as ref:
+		for line in ref:
+			if len(line.split('\t')) > 1:
+				name, path = line.split('\t')
+				names.append(name)
+				masked_path.append('/home/anouk/anouk2/pangenome/{}/masked/{}_masked.fa'.format(out_dir, name))
+	return zip(names, masked_path)
+
+def create_seqfile_m(out_dir, n_p):
+	with open('{}/seqfile_masked.txt'.format(out_dir), 'w') as seq_file:
+		for n, p in list(n_p):
+			seq_file.write(n)
+			seq_file.write('\t')
+			seq_file.write(p)
+			seq_file.write('\n')
+	return
+	
+zip_np = seqfile_masked()
+inputNames = ' '.join([x[0] for x in zip_np])
+create_seqfile_m(out_dir, seqfile_masked())
+
+
+rule all:
+	input:
+		expand('{d}/minigraph.gfa', d = out_dir),
+		expand('{d}/unmasked.paf', d = out_dir),
+		expand('{d}/masked/{genome}_masked.fa', d = out_dir, genome = [x[0] for x in zip_np]),
+		#expand('{d}/masked/', d = out_dir),
+		#expand('{d}/masked/{genome}_masked.fa', d= out_dir, genome = [x[0] for x in zip_np]),
+		expand('{d}/masked.paf', d = out_dir),
+		#directory(expand('{d}/split_graph', d= out_dir)),
+		expand('{d}/cactus.hal', d = out_dir)
+
+rule minigraph:
+	input: minigraph_input
+	output: expand('{d}/minigraph.gfa', d = out_dir)
+	shell:
+		'~/anouk2/pangenome/minigraph/minigraph -xggs -t16 {input} > {output}'
+
+rule cactus1:
+	input: 
+		seqfile ='{d}/seqfile.txt',
+		graph = '{d}/minigraph.gfa'
+	output:
+		graph = '{d}/unmasked.paf',
+		graphseq = '{d}/graphseq_unmasked.fasta'
+	shell:
+		'cactus-graphmap jobStore {input.seqfile} {input.graph} {output.graph} --outputFasta {output.graphseq}'
+
+rule preprocess:
+	input:
+		seq = '{d}/seqfile.txt',
+		masked = '{d}/seqfile_masked.txt',
+		paf = '{d}/unmasked.paf',
+	params:
+		inNames = inputNames #' '.join([x[0] for x in zip_np])
+	output:
+		masked = directory('{d}/masked/'),
+		outfile = expand('{d}/masked/{genome}_masked.fa', d = out_dir, genome = [x[0] for x in zip_np])
+	shell:
+		'cactus-preprocess jobstore_prep {input.seq} {input.masked} --inputNames {params.inNames} --maskFile {input.paf} --realTimeLogging --logInfo --retryCount 0 --maskAlpha'
+
+rule cactus2:
+	input: 
+		masked = directory('{d}/masked/'),
+		seqfile ='{d}/seqfile_masked.txt',
+		graph = '{d}/minigraph.gfa'
+	output:
+		graph = '{d}/masked.paf',
+		graphseq = '{d}/graphseq_masked.fasta'
+	shell:
+		'cactus-graphmap jobStore {input.seqfile} {input.graph} {output.graph} --outputFasta {output.graphseq}'
+
+
+rule cactus_align:
+	input: 
+		seqfile ='{d}/seqfile_masked.txt',
+		minigraph = '{d}/minigraph.gfa',
+		graph = '{d}/masked.paf',
+	output:
+		graph = '{d}/cactus.hal',
+	shell:
+		"cactus-align jobStore {input.seqfile} {input.graph} {output.graph} --pangenome --pafInput --realTimeLogging --reference TR4_II5"

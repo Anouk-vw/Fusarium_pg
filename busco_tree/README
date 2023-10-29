@@ -1,0 +1,62 @@
+Steps to create busco tree
+Busco genes:
+
+    van Dam:
+
+for f in $(ls ~/anouk2/Foc/effectors/fasta/vanDam_only/* | cut -d'/' -f 9 | sed 's/.fasta//' ); do busco -m genome -i /home/anouk/anouk2/Foc/effectors/fasta/vanDam_only/$f.fasta -o $f -l hypocreales_odb10 -c 15; done
+
+    Cubense
+
+exist in /anouk/assembly_foc/busco_* Get them as a link to seperate directory, for easier downstream analysis
+
+Cubense references
+
+for f in $(ls ~/anouk2/Foc/*.final.rename.fasta | cut -d'/' -f 6); do busco -m genome -i /home/anouk/anouk2/Foc/${f} -l hypocreales_odb10 -o ${f} -c 8 ; done
+
+Cuban longreads
+
+for f in $(ls ~/anouk2/Cuban_NP/*final.fasta | cut -d'/' -f 6 | cut -d'' -f 1); do busco -m genome -i /home/anouk/anouk2/Cuban_NP/${f}_final.fasta -l hypocreales_odb10 -o $f -c 8 ; done
+
+    Verticilliodes
+
+download ref seq and run busco -> Verticilliodes
+
+Collect Busco in all:
+
+    get busco ids per species for file in $(ls */run_hypocreales_odb10/full_table.tsv); do grep -v "^#" ${file} | awk '$2=="Complete" {print $1}' >> complete_busco_ids.txt; done
+
+AND
+
+for file in $(ls cubense_lns/*/run_hypocreales_odb10/full_table.tsv); do grep -v "^#" ${file} | awk '$2=="Complete" {print $1}' >> complete_busco_ids_2.txt ; done
+
+    Count busco ids sort complete_busco_ids.txt |uniq -c > complete_busco_ids_with_counts.txt
+
+    Get busco ids in all get max value:
+
+sort -n complete_busco_ids_with_counts_2.txt | tail
+
+get busco_ids in all awk '{if($1 == "MAXVALUE")print $2}' complete_busco_ids_with_counts.txt > complete_busco_in_all.txt
+
+    Get sequence from all busco genes in all, also transform the header and the file name
+
+From dir with vanDam:
+
+Bash Rename_busco.sh busco_completes
+
+From dir with cubense:
+
+~/anouk2/assembly_foc:bash ~/anouk2/pangenome/diversity/busco/rename_busco.sh busco_foc
+
+take togehter:
+
+mv busco_foc/* ../pangenome/diversity/busco/busco_completes/
+
+Concatenate all squences from the same busco gene:
+
+while read line; do cat busco_completes/*_${line} >> ${line}_aa.fasta; done<complete_busco_in_all.txt
+
+--- Part 2 ---
+
+Add also an option to change aminoacids to nucleotides, starting from the busco output: (these fasta have a chrom:start-stop header, to create bed with)
+
+See busco_AA2nuc.py
