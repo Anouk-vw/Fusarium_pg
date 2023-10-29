@@ -12,5 +12,6 @@ Ref         TR4      x       y
 Scripts for downstream analysis
 
 - analyse_ncumer.py:
-script to analyse nucmer output and produce all_vs_all dataframe
-
+  Script to analyse nucmer output and produce all_vs_all dataframe
+- AR_similarity:
+  Script to go from nucmer_directory -> pairwise similairty analysis
