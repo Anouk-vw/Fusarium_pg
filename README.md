@@ -10,6 +10,5 @@ Create BUSCO tree
 
 ## genes
 Create cactus-graph (used to lift over annotation between strain)
-### cactus_complete/scripts
-Analyse orthogroups
-Analyse MCscanX output
+- cactus_complete/scripts
+  scripts to analyse orthogroups, MCscanX output
