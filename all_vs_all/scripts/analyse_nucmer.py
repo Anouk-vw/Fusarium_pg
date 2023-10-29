@@ -4,10 +4,9 @@ input: bed files with first name as reference
 output: 
 1. Heatmap of co-occuring adaptive regions between genomes
 2. Size of acc/core content per genome
-?. itteration graph?.
 ...
 
-python analyse_nucmer.py ../Valerie/cov_df_60/ ../Valerie/cov_df_sliding_60/ Plots
+python analyse_nucmer.py cov_df_out cov_df_sliding Plots
 
 argv[1] = path to directory with cov_dfs
 argv[2] = path to directory with sliding windows cov_df
