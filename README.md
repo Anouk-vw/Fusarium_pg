@@ -5,11 +5,11 @@ Repository containing main scripts used to analyse <i>Fusarium oxysporum</i> gen
 ## All_vs_all
 Run all-vs-all comparison
 
-##busco_tree
+## busco_tree
 Create BUSCO tree
 
-##genes
+## genes
 Create cactus-graph (used to lift over annotation between strain)
-###cactus_complete/scripts
+### cactus_complete/scripts
 Analyse orthogroups
 Analyse MCscanX output
