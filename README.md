@@ -4,6 +4,8 @@ Repository containing main scripts used to analyse <i>Fusarium oxysporum</i> gen
 
 - All_vs_all  
   Run all-vs-all comparison
+  - scripts
+    AR_similarity.py: Script to calculare pairwise similarity
 -  busco_tree  
   Create BUSCO tree
 - genes  
